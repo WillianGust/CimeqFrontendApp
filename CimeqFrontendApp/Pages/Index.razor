@@ -25,6 +25,22 @@
     private string username;
     private string password;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await GetTokenFromCookie();
+            if (!string.IsNullOrEmpty(token))
+            {
+                NavigationManager.NavigateTo("/clients");
+            }
+        }
+    }
+    private async Task<string> GetTokenFromCookie()
+    {
+        return await JSRuntime.InvokeAsync<string>("getCookie", "token");
+    }
+
     private async Task HandleSubmit()
     {
         var loginModel = new LoginModel

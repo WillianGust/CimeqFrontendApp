@@ -1,0 +1,214 @@
+﻿@page "/orders"
+@using System.Text;
+@using Newtonsoft.Json;
+@using System.Net.Http.Headers;
+@inject IJSRuntime JSRuntime
+@inject HttpClient httpClient
+@inject NavigationManager NavigationManager
+
+<div class="d-flex justify-content-between align-items-center mb-5">
+    <h3 class="mt-3">Listing Orders</h3>
+    <div class="mt-3">
+        <button type="button" class="btn btn-outline-success" @onclick="NavigateToCreate">Add new</button>
+    </div>
+</div>
+
+@if (orders == null)
+{
+    <p>Loading...</p>
+}
+else if (orders.Count == 0)
+{
+    <p>No orders found</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Client</th>
+                <th>Description</th>
+                <th>Date Order</th>
+                <th>Cost Order</th>
+                <th colspan="3">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in orders)
+            {
+                <tr>
+                    <td>@order.Id</td>
+                    <td>@order.Client.Username</td>
+                    <td>@order.Description</td>
+                    <td>@order.DateOrder</td>
+                    <td>@order.CostOrder</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-primary" @onclick="() => NavigateToEdit(order.Id)">Edit</button>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-outline-danger" @onclick="() => ConfirmDelete(order.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div id="chart_div" style="width: 100%; height: 400px;"></div>
+
+    <script>
+        // Carregue a biblioteca do Google Charts
+        google.charts.load('current', { packages: ['corechart'] });
+
+        @code {
+        private string GetChartData()
+        {
+            var chartData = "var data = new google.visualization.DataTable();\n";
+            chartData += "data.addColumn('string', 'Client');\n";
+            chartData += "data.addColumn('number', 'Total Cost');\n";
+
+            foreach (var order in orders)
+            {
+                chartData += $"data.addRow(['{order.Client.Username}', {order.CostOrder}]);\n";
+            }
+
+            return chartData;
+        }
+    }
+
+        @if (orders.Any())
+        {
+            <text>
+                google.charts.setOnLoadCallback(function () {
+                @GetChartData()
+                                var options = {
+                        title: 'Total Cost by Client',
+                        hAxis: { title: 'Client', titleTextStyle: { color: '#333' } },
+                        vAxis: { minValue: 0 },
+                        bars: 'horizontal'
+                    };
+
+                    var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
+                    chart.draw(data, options);
+                });
+            </text>
+        }
+    </script>
+}
+
+
+@code {
+    private List<OrderModel> orders;
+
+    private async Task ConfirmDelete(int orderId)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete?");
+
+        if (confirmed)
+        {
+            var token = await GetTokenFromCookie();
+            if (!string.IsNullOrEmpty(token))
+            {
+                await DeleteOrder(orderId, token);
+            }
+            else
+            {
+                ShowAlert("Invalid token");
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        NavigationManager.NavigateTo("/orders/new");
+    }
+
+    private void NavigateToEdit(int id)
+    {
+        NavigationManager.NavigateTo($"/order/{id}/edit");
+    }
+
+    private async Task DeleteOrder(int orderId, string token)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.DeleteAsync($"/orders/{orderId}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadOrderList(token);
+            ShowAlert("Order deleted successfully.");
+        }
+        else
+        {
+            ShowAlert("Failed to delete the order.");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await GetTokenFromCookie();
+            if (!string.IsNullOrEmpty(token))
+            {
+                await LoadOrderList(token);
+                InitializeGoogleCharts();
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+    private void InitializeGoogleCharts()
+    {
+        // Carregue a biblioteca do Google Charts
+        JSRuntime.InvokeVoidAsync("google.charts.load", "'current', {'packages':['corechart']}");
+        JSRuntime.InvokeVoidAsync("google.charts.setOnLoadCallback", "drawChart");
+    }
+
+    private async Task<string> GetTokenFromCookie()
+    {
+        return await JSRuntime.InvokeAsync<string>("getCookie", "token");
+    }
+
+    private async Task LoadOrderList(string token)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.GetAsync("/orders");
+
+        if (response.IsSuccessStatusCode)
+        {
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            orders = JsonConvert.DeserializeObject<List<OrderModel>>(jsonResponse);
+            StateHasChanged();
+        }
+        else
+        {
+            ShowAlert("Invalid token");
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private void ShowAlert(string message)
+    {
+        JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    public class OrderModel
+    {
+        public int Id { get; set; }
+        public int IdClient { get; set; }
+        public ClientModel Client { get; set; }
+        public string Description { get; set; }
+        public DateTime DateOrder { get; set; }
+        public double CostOrder { get; set; }
+    }
+    public class ClientModel
+    {
+        public string? Username { get; set; }
+    }
+}

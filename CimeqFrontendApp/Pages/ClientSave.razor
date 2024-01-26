@@ -1,6 +1,5 @@
 ﻿@page "/clients/new"
 @page "/client/{id}/edit"
-
 @using System.Net.Http.Headers
 @using Newtonsoft.Json;
 @using System.Text;
@@ -10,22 +9,23 @@
 
 
 <div class="container mt-5">
-<h3>Client: @client.Username @client.LastName</h3>
+    <h3>Client: @client.Username @client.LastName</h3>
     <form @onsubmit="SaveClient">
         <div class="form-group mb-3">
-            <input type="text" class="form-control" id="username" @bind="client.Username" required />
+            <input type="text" class="form-control" placeholder="First name" id="username" @bind="client.Username" required />
         </div>
         <div class="form-group mb-3">
-            <input type="text" class="form-control" id="lastName" @bind="client.LastName" required />
+            <input type="text" class="form-control" placeholder="Last name" id="lastName" @bind="client.LastName" required />
         </div>
         <div class="form-group mb-3">
-            <input type="email" class="form-control" id="email" @bind="client.Email" required />
+            <input type="email" class="form-control" placeholder="Email" id="email" @bind="client.Email" required />
         </div>
         <div class="form-group mb-3">
-            <input type="text" class="form-control" id="address" @bind="client.Adress" required />
+            <input type="text" class="form-control" placeholder="Address" id="address" @bind="client.Adress" required />
         </div>
         <div class="form-group mb-3">
             <button type="submit" class="btn btn-outline-success">Save</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
         </div>
     </form>
 </div>
@@ -39,9 +39,10 @@
     protected override async Task OnInitializedAsync()
     {
         var token = await GetTokenFromCookie();
-        if (!string.IsNullOrEmpty(token) && id > 0)
+        if (!string.IsNullOrEmpty(token))
         {
-            await LoadClientById(id, token);
+            if (id > 0)
+                await LoadClientById(id, token);
         }
         else
         {
@@ -59,7 +60,7 @@
         {
             var jsonResponse = await response.Content.ReadAsStringAsync();
             client = JsonConvert.DeserializeObject<ClientModel>(jsonResponse);
-            StateHasChanged(); 
+            StateHasChanged();
         }
         else
         {
@@ -87,7 +88,6 @@
 
             if (response.IsSuccessStatusCode)
             {
-                
                 NavigationManager.NavigateTo("/clients");
             }
             else
@@ -100,6 +100,11 @@
             ShowAlert("Invalid token. Log in again.");
             NavigationManager.NavigateTo("/");
         }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/clients");
     }
 
     private async Task<string> GetTokenFromCookie()
