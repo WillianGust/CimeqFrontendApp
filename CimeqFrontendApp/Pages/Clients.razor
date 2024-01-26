@@ -1,0 +1,156 @@
+﻿@page "/clients"
+@using System.Text;
+@using Newtonsoft.Json;
+@using System.Net.Http.Headers;
+@inject IJSRuntime JSRuntime
+@inject HttpClient httpClient
+@inject NavigationManager NavigationManager
+
+<div class="d-flex justify-content-between align-items-center mb-5">
+    <h3 class="mt-3">Listing Clients</h3>
+    <div class="mt-3">
+        <button type="button" class="btn btn-outline-success" @onclick="NavigateToCreate">Add new</button>
+    </div>
+</div>
+
+@if (clients == null)
+{
+    <p>Loading...</p>
+}
+else if (clients.Count == 0)
+{
+    <p>No client found</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>LastName</th>
+                <th>Email</th>
+                <th>Address</th>
+                <th colspan="3">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var client in clients)
+            {
+                <tr>
+                    <td>@client.Id</td>
+                    <td>@client.Username</td>
+                    <td>@client.LastName</td>
+                    <td>@client.Email</td>
+                    <td>@client.Adress</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-primary" @onclick="() => NavigateToEdit(client.Id)">Edit</button>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-outline-danger" @onclick="() => ConfirmDelete(client.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ClientModel> clients;
+
+    private async Task ConfirmDelete(int clientId)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete?");
+
+        if (confirmed)
+        {
+            var token = await GetTokenFromCookie();
+            if (!string.IsNullOrEmpty(token))
+            {
+                await DeleteClient(clientId, token);
+            }
+            else
+            {
+                ShowAlert("Token inválido");
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+    private void NavigateToCreate()
+    {
+        NavigationManager.NavigateTo("/clients/new");
+    }
+    private void NavigateToEdit(int id)
+    {
+        NavigationManager.NavigateTo($"/client/{id}/edit");
+    }
+
+    private async Task DeleteClient(int clientId, string token)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.DeleteAsync($"/clients/{clientId}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadClientList(token);
+            ShowAlert("Client deleted successfully.");
+        }
+        else
+        {
+            ShowAlert("Failed to delete the client.");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await GetTokenFromCookie();
+            if (!string.IsNullOrEmpty(token))
+            {
+                await LoadClientList(token);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+
+    private async Task<string> GetTokenFromCookie()
+    {
+        return await JSRuntime.InvokeAsync<string>("getCookie", "token");
+    }
+
+    private async Task LoadClientList(string token)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.GetAsync("/clients");
+
+        if (response.IsSuccessStatusCode)
+        {
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            clients = JsonConvert.DeserializeObject<List<ClientModel>>(jsonResponse);
+            StateHasChanged(); 
+        }
+        else
+        {
+            ShowAlert("Token invalid");
+            NavigationManager.NavigateTo("/");
+        }
+    }
+    private void ShowAlert(string message)
+    {
+        JSRuntime.InvokeVoidAsync("alert", message);
+    }
+    public class ClientModel
+    {
+        public int Id { get; set; }
+        public string Username { get; set; }
+        public string LastName { get; set; }
+        public string Email { get; set; }
+        public string Adress { get; set; }
+    }
+}

@@ -1,0 +1,122 @@
+﻿@page "/clients/new"
+@page "/client/{id}/edit"
+
+@using System.Net.Http.Headers
+@using Newtonsoft.Json;
+@using System.Text;
+@inject IJSRuntime JSRuntime
+@inject HttpClient httpClient
+@inject NavigationManager NavigationManager
+
+
+<div class="container mt-5">
+<h3>Client: @client.Username @client.LastName</h3>
+    <form @onsubmit="SaveClient">
+        <div class="form-group mb-3">
+            <input type="text" class="form-control" id="username" @bind="client.Username" required />
+        </div>
+        <div class="form-group mb-3">
+            <input type="text" class="form-control" id="lastName" @bind="client.LastName" required />
+        </div>
+        <div class="form-group mb-3">
+            <input type="email" class="form-control" id="email" @bind="client.Email" required />
+        </div>
+        <div class="form-group mb-3">
+            <input type="text" class="form-control" id="address" @bind="client.Adress" required />
+        </div>
+        <div class="form-group mb-3">
+            <button type="submit" class="btn btn-outline-success">Save</button>
+        </div>
+    </form>
+</div>
+
+@code {
+
+    [Parameter]
+    public string Id { get; set; }
+    private int id { get { return Convert.ToInt32(Id); } }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await GetTokenFromCookie();
+        if (!string.IsNullOrEmpty(token) && id > 0)
+        {
+            await LoadClientById(id, token);
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task LoadClientById(int id, string token)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.GetAsync($"/clients/{id}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            client = JsonConvert.DeserializeObject<ClientModel>(jsonResponse);
+            StateHasChanged(); 
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+
+    private ClientModel client = new ClientModel();
+
+    private async Task SaveClient()
+    {
+        var token = await GetTokenFromCookie();
+        if (!string.IsNullOrEmpty(token))
+        {
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var content = new StringContent(JsonConvert.SerializeObject(client), Encoding.UTF8, "application/json");
+            HttpResponseMessage response = null;
+
+            if (id < 1)
+                response = await httpClient.PostAsync("/clients", content);
+            else
+                response = await httpClient.PutAsync("/clients/" + id, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                
+                NavigationManager.NavigateTo("/clients");
+            }
+            else
+            {
+                ShowAlert("Fail to save client");
+            }
+        }
+        else
+        {
+            ShowAlert("Invalid token. Log in again.");
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task<string> GetTokenFromCookie()
+    {
+        return await JSRuntime.InvokeAsync<string>("getCookie", "token");
+    }
+
+    private void ShowAlert(string message)
+    {
+        JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    public class ClientModel
+    {
+        public string Username { get; set; }
+        public string LastName { get; set; }
+        public string Email { get; set; }
+        public string Adress { get; set; }
+    }
+}
