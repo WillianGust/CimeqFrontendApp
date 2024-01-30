@@ -2,6 +2,7 @@
 @using System.Text;
 @using Newtonsoft.Json;
 @using System.Net.Http.Headers;
+@using ChartJs.Blazor.PieChart;
 @inject IJSRuntime JSRuntime
 @inject HttpClient httpClient
 @inject NavigationManager NavigationManager
@@ -53,8 +54,12 @@ else
             }
         </tbody>
     </table>
+    }
+<Chart Config="_pieConfig"></Chart>
 
-    <div id="chart_div" style="width: 100%; height: 400px;"></div>
+
+
+    @* <div id="chart_div" style="width: 100%; height: 400px;"></div>
 
     <script>
         // Carregue a biblioteca do Google Charts
@@ -94,10 +99,62 @@ else
             </text>
         }
     </script>
-}
+} *@
 
 
 @code {
+    private PieConfig _pieConfig;
+    protected override void OnInitialized()
+    {
+        ConfigurePieConfig();
+    }
+    private void ConfigurePieConfig()
+    {
+        _pieConfig = new PieConfig();
+        _pieConfig.Options = new PieOptions()
+            {
+                Responsive = true,
+                Title = new OptionsTitle
+                {
+                    Display = true,
+                    Text = "Orders by Client"
+                }
+            };
+
+        
+            foreach (var order in orders)
+            {
+                if (order != null && order.Client != null)
+                {
+                    var username = order.Client.Username ?? "Unknown";
+                    _pieConfig.Data.Labels.Add(username);
+                }
+                else
+                {
+                    _pieConfig.Data.Labels.Add("Unknown");
+                }
+            }
+
+            var backgroundColors = new List<string>();
+            var random = new Random();
+            for (int i = 0; i < orders.Count; i++)
+            {
+                backgroundColors.Add(ColorUtil.ColorHexString(
+                    (byte)random.Next(0, 256),
+                    (byte)random.Next(0, 256),
+                    (byte)random.Next(0, 256)
+                ));
+            }
+
+            var dataset = new PieDataset<int>(orders.Select(order => (int)order.CostOrder).ToArray())
+                {
+                    BackgroundColor = backgroundColors.ToArray()
+                };
+            _pieConfig.Data.Datasets.Add(dataset);
+        
+    }
+        
+
     private List<OrderModel> orders;
 
     private async Task ConfirmDelete(int orderId)
