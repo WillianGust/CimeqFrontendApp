@@ -54,10 +54,12 @@ else
         </tbody>
     </table>
 
-    <div id="chart_div" style="width: 100%; height: 400px;"></div>
-
-    <script>
-        // Carregue a biblioteca do Google Charts
+    <h1>Blazor Pie Chart</h1>
+    <div id="chartdiv" style="width: 100%; height: 400px;"></div>
+    <button class="btn btn-outline-primary" @onclick="GenerateChartBlazor">Generate chart</button>
+    #region
+    @* <script>
+        
         google.charts.load('current', { packages: ['corechart'] });
 
         @code {
@@ -93,11 +95,75 @@ else
                 });
             </text>
         }
-    </script>
+    </script> *@
+    #endregion
 }
 
 
 @code {
+
+    OrderModel orderModel = new OrderModel();
+    List<OrderModel> orderInfos = new List<OrderModel>();
+    private async Task GenerateChartBlazor()
+    {
+        var orderInfos = await getOrderInfo();
+        await JSRuntime.InvokeVoidAsync("GenerateChart", orderInfos);
+    }
+
+    private async Task<List<OrderModel>> getOrderInfo()
+    {
+        try
+        {
+            // Obtenha o token de autenticação
+            var token = await GetToken();
+
+            // Verifique se o token não está vazio
+            if (!string.IsNullOrEmpty(token))
+            {
+                // Configure o cabeçalho de autorização com o token
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                // Faça a solicitação para obter os pedidos
+                var response = await httpClient.GetAsync("/orders");
+
+                // Verifique se a solicitação foi bem-sucedida
+                if (response.IsSuccessStatusCode)
+                {
+                    // Se sim, leia a resposta e desserialize os pedidos
+                    var jsonResponse = await response.Content.ReadAsStringAsync();
+                    var orders = JsonConvert.DeserializeObject<List<OrderModel>>(jsonResponse);
+                    return orders;
+                }
+                else
+                {
+                    // Se não, lide com o erro de acordo
+                    Console.WriteLine($"Failed to get orders. Status code: {response.StatusCode}");
+                }
+            }
+            else
+            {
+                // Se o token estiver vazio, lide com isso de acordo
+                Console.WriteLine("Token is empty.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Se ocorrer uma exceção, lide com ela de acordo
+            Console.WriteLine($"An error occurred: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task<string> GetToken()
+    {
+        // Implemente a lógica para obter o token de autenticação
+        // Isso pode envolver a autenticação do usuário, obtenção do token do servidor de autenticação, etc.
+        // Retorne o token obtido ou uma string vazia se não for possível obter o token
+        return "";
+    }
+
+
     private List<OrderModel> orders;
 
     private async Task ConfirmDelete(int orderId)
@@ -154,7 +220,6 @@ else
             if (!string.IsNullOrEmpty(token))
             {
                 await LoadOrderList(token);
-                InitializeGoogleCharts();
             }
             else
             {
@@ -162,13 +227,7 @@ else
             }
         }
     }
-    private void InitializeGoogleCharts()
-    {
-        // Carregue a biblioteca do Google Charts
-        JSRuntime.InvokeVoidAsync("google.charts.load", "'current', {'packages':['corechart']}");
-        JSRuntime.InvokeVoidAsync("google.charts.setOnLoadCallback", "drawChart");
-    }
-
+    
     private async Task<string> GetTokenFromCookie()
     {
         return await JSRuntime.InvokeAsync<string>("getCookie", "token");
